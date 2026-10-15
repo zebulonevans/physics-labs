@@ -194,6 +194,8 @@ td.none { color: var(--muted); }
 
 .pwform { display: flex; flex-wrap: wrap; gap: 8px; padding-left: 50px; }
 .pwform[hidden] { display: none; }
+.clearform { padding-left: 0; margin: 4px 0 12px; align-items: center; }
+.clearform .pw-msg { padding-left: 0; }
 .pwform input { font: 500 0.95rem/1 var(--mono); padding: 11px 12px; border-radius: 6px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); min-width: 0; flex: 1 1 160px; }
 .pw-msg { font-size: 0.82rem; padding-left: 50px; }
 .pw-msg:empty { display: none; }
@@ -309,6 +311,12 @@ footer { font-size: 0.78rem; color: var(--muted); border-top: 1px solid var(--ru
           <button class="btn ghost small" id="clear" type="button">Clear history</button>
         </div>
       </div>
+      <form class="pwform clearform" id="clearForm" hidden>
+        <input type="password" id="clearPw" autocomplete="off" placeholder="Teacher password to clear every run" aria-label="Teacher password to clear the run history">
+        <button class="btn" type="submit">Clear every run</button>
+        <button class="btn ghost" type="button" id="clearCancel">Cancel</button>
+        <span class="pw-msg" id="clearMsg" aria-live="polite"></span>
+      </form>
       <p class="log-note" id="logNote">Every release this session, with its masses, friction, your stopwatch time and the gate time. The export also gives each mass in kilograms.</p>
       <div class="table-wrap">
         <table>
@@ -823,11 +831,20 @@ footer { font-size: 0.78rem; color: var(--muted); border-top: 1px solid var(--ru
     if (tag === "input" || tag === "textarea") return;
     e.preventDefault();
   });
-  let armed = 0;
+  // Clearing wipes a group's whole lab, predictions included, so it takes the teacher password.
+  const closeClear = () => { $("clearForm").hidden = true; $("clearPw").value = ""; $("clearMsg").textContent = ""; };
   $("clear").addEventListener("click", () => {
-    const b = $("clear");
-    if (Date.now() - armed > 4000) { armed = Date.now(); b.textContent = "Tap again to clear"; setTimeout(() => { if (Date.now() - armed >= 4000) b.textContent = "Clear history"; }, 4100); return; }
-    armed = 0; b.textContent = "Clear history"; S.log = []; save(); reset(); renderLog(); drawGraph();
+    if (!$("clearForm").hidden) { closeClear(); return; }
+    $("clearForm").hidden = false; $("clearMsg").textContent = ""; $("clearPw").focus();
+  });
+  $("clearCancel").addEventListener("click", closeClear);
+  $("clearForm").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    let ok = false;
+    try { ok = (await sha($("clearPw").value.trim().toLowerCase())) === PW_HASH; } catch (e) {}
+    if (!ok) { $("clearMsg").className = "pw-msg bad"; $("clearMsg").textContent = "Only your teacher can clear the history."; $("clearPw").select(); return; }
+    closeClear(); S.log = []; save(); reset(); renderLog(); drawGraph();
+    $("copyMsg").textContent = "History cleared."; setTimeout(() => $("copyMsg").textContent = "", 3000);
   });
   $("copy").addEventListener("click", () => {
     const text = historyRows().map(r => r.join("\t")).join("\n"), msg = $("copyMsg");
