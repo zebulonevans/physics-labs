@@ -1,0 +1,846 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0;padding:0}</style>
+</head><body>
+<title>Lab 3 Cart Track</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cardo:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: the bench runs full width as the hero; the stopwatch and controls sit beside the graph; run plan, data log and the gate-time lock close the page. */
+:root {
+  --bg: #F9F9F9;
+  --surface: #FFFFFF;
+  --ink: #111111;
+  --muted: #5A5F67;
+  --rule: #DEE1E5;
+  --accent: #1F4E79;
+  --accent-soft: #E7EEF5;
+  --on-accent: #FFFFFF;
+  --wood: #C9A26B;
+  --wood-edge: #A8834F;
+  --rail: #9AA1AA;
+  --mass: #3B3F46;
+  --beam: #D2402C;
+  --beam-hit: #2F8F57;
+  --good: #2F7D4F;
+  --warn: #B4472F;
+  --lcd-bg: #15181C;
+  --lcd-fg: #FF6A45;
+  --lcd-dim: #8A9098;
+  --display: 'Cardo', Georgia, 'Times New Roman', serif;
+  --body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111316; --surface: #191C20; --ink: #ECEDEE; --muted: #A3A9B1; --rule: #2B3036;
+    --accent: #8DB7E0; --accent-soft: #1C2A38; --on-accent: #0E1620;
+    --wood: #7E6440; --wood-edge: #9C7D52; --rail: #7D858F; --mass: #C9CDD3;
+    --beam: #FF6B57; --beam-hit: #5FD08C; --good: #6CCB8F; --warn: #FF8A6E;
+    --lcd-bg: #0A0C0E; --lcd-fg: #FF7A57; --lcd-dim: #8A9098;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111316; --surface: #191C20; --ink: #ECEDEE; --muted: #A3A9B1; --rule: #2B3036;
+  --accent: #8DB7E0; --accent-soft: #1C2A38; --on-accent: #0E1620;
+  --wood: #7E6440; --wood-edge: #9C7D52; --rail: #7D858F; --mass: #C9CDD3;
+  --beam: #FF6B57; --beam-hit: #5FD08C; --good: #6CCB8F; --warn: #FF8A6E;
+  --lcd-bg: #0A0C0E; --lcd-fg: #FF7A57; --lcd-dim: #8A9098;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.55; }
+.wrap {
+  max-width: 1120px; margin: 0 auto;
+  padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px;
+}
+h1, h2 { font-family: var(--display); font-weight: 700; text-wrap: balance; margin: 0; letter-spacing: 0.005em; }
+h1 { font-size: clamp(2rem, 4.6vw, 3rem); line-height: 1.05; }
+h2 { font-size: 1.35rem; line-height: 1.2; }
+p { margin: 0; }
+.eyebrow { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+header { display: grid; gap: 10px; }
+.lede { max-width: 66ch; color: var(--muted); font-size: 1.02rem; }
+.lede b { color: var(--ink); font-weight: 600; }
+
+.bench { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 14px 8px; }
+.bench canvas { display: block; width: 100%; }
+.bench-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; font-size: 0.78rem; color: var(--muted); padding-top: 6px; }
+.status { font-weight: 500; color: var(--ink); }
+.status.warn { color: var(--warn); }
+
+.deck { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 28px; align-items: start; }
+@media (max-width: 820px) { .deck { grid-template-columns: minmax(0, 1fr); } }
+.panel { display: grid; gap: 22px; }
+
+.timer { background: var(--lcd-bg); border-radius: 8px; padding: 16px 18px 14px; display: grid; gap: 6px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06); }
+.timer-label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.16em; color: var(--lcd-dim); text-transform: uppercase; display: flex; justify-content: space-between; gap: 8px; }
+.timer-read {
+  font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums;
+  font-size: clamp(2.6rem, 8vw, 3.6rem); line-height: 1.05; color: var(--lcd-fg);
+  text-shadow: 0 0 18px color-mix(in srgb, var(--lcd-fg) 45%, transparent);
+}
+.timer-read .unit { font-size: 0.42em; color: var(--lcd-dim); text-shadow: none; margin-left: 6px; }
+.gate-line { display: flex; justify-content: space-between; gap: 10px; font-family: var(--mono); font-size: 0.78rem; color: var(--lcd-dim); border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px; font-variant-numeric: tabular-nums; }
+.gate-line b { color: #E8EAED; font-weight: 600; }
+.timer-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-top: 6px; }
+.lcd-btn {
+  font: 600 0.95rem/1 var(--body); padding: 14px 12px; border-radius: 6px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.06); color: #ECEDEE;
+}
+.lcd-btn.primary { background: var(--lcd-fg); border-color: var(--lcd-fg); color: #15181C; }
+.lcd-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.lcd-btn.redo { grid-column: 1 / -1; padding: 10px 12px; font-size: 0.85rem; background: transparent; }
+.lcd-hint { font-family: var(--mono); font-size: 0.7rem; color: var(--lcd-dim); }
+
+.controls { display: grid; gap: 16px; }
+.field { display: grid; gap: 7px; }
+.field-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.field-name { font-weight: 600; font-size: 0.9rem; }
+.field-note { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font: 500 0.88rem/1 var(--body); font-variant-numeric: tabular-nums;
+  padding: 9px 13px; border-radius: 999px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink);
+  cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+}
+.chip:hover:not(:disabled) { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.chip:disabled { opacity: 0.45; cursor: not-allowed; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.switch { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
+.switch input { appearance: none; flex: none; width: 38px; height: 22px; border-radius: 999px; background: var(--rule); position: relative; cursor: pointer; margin: 1px 0 0; transition: background .15s; }
+.switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+.switch input:checked { background: var(--accent); }
+.switch input:checked::after { transform: translateX(16px); }
+.switch input:disabled { opacity: 0.45; cursor: not-allowed; }
+.switch-text { display: grid; gap: 2px; }
+.switch-text b { font-weight: 600; font-size: 0.9rem; }
+.switch-text span { font-size: 0.8rem; color: var(--muted); }
+
+.btn { font: 600 0.95rem/1 var(--body); padding: 13px 20px; border-radius: 6px; cursor: pointer; border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--rule); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.small { font-size: 0.8rem; padding: 8px 12px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+.graph-card { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; display: grid; gap: 10px; }
+.graph-card canvas { display: block; width: 100%; }
+.graph-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.graph-head p, .legend { font-size: 0.8rem; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.legend .dot-sw { border: 2px solid var(--accent); }
+.legend .dot-gate { background: var(--accent); }
+
+.lower { display: grid; grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr); gap: 24px; align-items: start; }
+@media (max-width: 820px) { .lower { grid-template-columns: minmax(0, 1fr); } }
+
+.plan { display: grid; gap: 14px; }
+.plan-group { display: grid; gap: 6px; }
+.plan-group h3 { margin: 0; font: 600 0.72rem/1.2 var(--body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.plan-item {
+  display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  text-align: left; width: 100%; font: 400 0.88rem/1.3 var(--body); color: var(--ink);
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 9px 11px; cursor: pointer;
+}
+.plan-item:hover:not(:disabled) { border-color: var(--accent); }
+.plan-item:disabled { cursor: not-allowed; opacity: 0.6; }
+.plan-item.current { border-color: var(--accent); background: var(--accent-soft); }
+.plan-item small { display: block; font-size: 0.74rem; color: var(--muted); }
+.tick { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--rule); display: grid; place-items: center; }
+.plan-item.done .tick { background: var(--good); border-color: var(--good); }
+.plan-item.done .tick::after { content: ""; width: 5px; height: 9px; border: solid var(--surface); border-width: 0 2px 2px 0; transform: translateY(-1px) rotate(45deg); }
+.pips { display: flex; gap: 4px; }
+.pips span { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--rule); }
+.pips span.on { background: var(--accent); border-color: var(--accent); }
+
+.predict { display: grid; gap: 8px; border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 12px 14px; }
+.predict[hidden] { display: none; }
+.predict p { font-size: 0.82rem; color: var(--muted); }
+.pred-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pred-row input { font: 600 1.05rem/1 var(--mono); width: 7.5em; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); }
+.pred-row .unit { font-family: var(--mono); color: var(--muted); }
+.pred-result { font-size: 0.9rem; font-weight: 500; }
+.pred-result:empty { display: none; }
+.pred-result.good { color: var(--good); }
+.pred-result.off { color: var(--warn); }
+.log { display: grid; gap: 12px; }
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 0.88rem; }
+th, td { padding: 9px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--rule); }
+th:first-child, td:first-child { padding-left: 12px; }
+th:last-child, td:last-child { padding-right: 10px; }
+th:first-child, td:first-child { text-align: left; }
+th { font: 600 0.66rem/1.2 var(--body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--bg); }
+tbody tr:last-child td { border-bottom: 0; }
+td.time { font-family: var(--mono); font-weight: 600; }
+td.locked { font-family: var(--mono); color: var(--muted); }
+td.none { color: var(--muted); }
+.empty td { text-align: left; color: var(--muted); white-space: normal; }
+.del { background: none; border: 0; color: var(--muted); cursor: pointer; font: 500 0.8rem/1 var(--body); padding: 4px 6px; border-radius: 4px; }
+.del:hover { color: var(--warn); }
+.copy-msg { font-size: 0.8rem; color: var(--good); }
+
+.pwform { display: flex; flex-wrap: wrap; gap: 8px; padding-left: 50px; }
+.pwform[hidden] { display: none; }
+.pwform input { font: 500 0.95rem/1 var(--mono); padding: 11px 12px; border-radius: 6px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); min-width: 0; flex: 1 1 160px; }
+.pw-msg { font-size: 0.82rem; padding-left: 50px; }
+.pw-msg:empty { display: none; }
+.pw-msg.bad { color: var(--warn); }
+.pw-msg.ok { color: var(--good); }
+.log-note { font-size: 0.8rem; color: var(--muted); }
+td.clock { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.howto { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; border-top: 1px solid var(--rule); padding-top: 18px; }
+@media (max-width: 720px) { .howto { grid-template-columns: minmax(0, 1fr); } }
+.howto div { display: grid; gap: 4px; }
+.howto b { font-family: var(--display); font-size: 1.05rem; }
+.howto p { font-size: 0.86rem; color: var(--muted); }
+.formula { font-family: "Times New Roman", Times, serif; color: var(--ink); font-size: 1.12em; white-space: nowrap; }
+.formula i { font-style: italic; }
+.formula .u { font-style: normal; }
+.frac { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; line-height: 1.1; margin: 0 0.12em; }
+.frac > span:first-child { border-bottom: 1px solid currentColor; padding: 0 0.15em; }
+footer { font-size: 0.78rem; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 18px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Annunciation Austin Physics &middot; Lab 3</div>
+    <h1>Newton's Second Law cart track</h1>
+    <p class="lede">A <b>500 g cart</b> on a level track, pulled by a hanging mass over a pulley. One of you releases the cart, one times it with the stopwatch from release until the cart reaches the gate at <b>100 cm</b>, and one records. Time every run <b>three times</b>. The friction-off prediction run is not hand-timed: you predict it first. The light gate's exact times stay hidden until your teacher shows them with a password. Gravity here is <span class="formula"><b><i>g</i> = 9.8 m/s<sup>2</sup></b></span>.</p>
+  </header>
+
+  <section class="bench" aria-label="Cart track">
+    <canvas id="scene" role="img" aria-label="A cart on a 1 meter track tied over a pulley to a hanging mass, with a light gate at 100 centimeters."></canvas>
+    <div class="bench-foot">
+      <span class="status" id="status" aria-live="polite">Ready. Choose your masses, then release the cart.</span>
+      <span>The hanging mass's drop is shortened so it fits on screen.</span>
+    </div>
+  </section>
+
+  <section class="deck">
+    <div class="panel">
+      <div class="timer">
+        <div class="timer-label"><span>Stopwatch</span><span id="swState">Ready</span></div>
+        <div class="timer-read" id="swRead" aria-live="off">0.00<span class="unit">s</span></div>
+        <div class="gate-line"><span>Light gate &middot; 1.000 m</span><span id="gateRead">locked</span></div>
+        <div class="timer-buttons">
+          <button class="lcd-btn" id="go" type="button">Release the cart</button>
+          <button class="lcd-btn primary" id="sw" type="button">Start stopwatch</button>
+          <button class="lcd-btn redo" id="redo" type="button" disabled>Redo this run</button>
+        </div>
+        <div class="lcd-hint">Space bar starts and stops the stopwatch.</div>
+      </div>
+
+      <div class="controls">
+        <div class="field">
+          <div class="field-head"><span class="field-name">Hanging mass</span><span class="field-note" id="hangNote">20 g</span></div>
+          <div class="chips" id="hangChips"></div>
+        </div>
+        <div class="field">
+          <div class="field-head"><span class="field-name">Mass added to the cart</span><span class="field-note" id="cartNote">Cart total 500 g</span></div>
+          <div class="chips" id="addChips"></div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="fric" checked>
+          <span class="switch-text"><b>Track friction</b><span id="fricNote"></span></span>
+        </label>
+        <div class="predict" id="predict" hidden>
+          <div class="field-head"><span class="field-name">Your prediction</span><span class="field-note">friction off</span></div>
+          <p>Work out the time on paper first. Type the time you predict the cart takes to reach the gate, then press Check my prediction. The cart runs, and the gate shows how close you came.</p>
+          <form class="pred-row" id="predForm">
+            <input id="pred" inputmode="decimal" autocomplete="off" placeholder="seconds" aria-label="Predicted time to the gate, in seconds"><span class="unit">s</span>
+            <button class="btn" type="submit" id="check">Check my prediction</button>
+          </form>
+          <div class="pred-result" id="predResult" aria-live="polite"></div>
+        </div>
+        <div class="field">
+          <label class="switch">
+            <input type="checkbox" id="showGate">
+            <span class="switch-text"><b>Show gate times</b><span id="gateNote">Hidden. Your teacher turns this on with a password.</span></span>
+          </label>
+          <form class="pwform" id="pwForm" hidden>
+            <input type="password" id="pw" autocomplete="off" placeholder="Teacher password" aria-label="Teacher password">
+            <button class="btn" type="submit">Show</button>
+            <button class="btn ghost" type="button" id="pwCancel">Cancel</button>
+          </form>
+          <span class="pw-msg" id="pwMsg" aria-live="polite"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="graph-card">
+      <div class="graph-head">
+        <h2>Distance against time</h2>
+        <p>Start line to gate</p>
+      </div>
+      <canvas id="graph" role="img" aria-label="Stopwatch times plotted at 1.00 meter, and the light gate's curves when gate times are shown."></canvas>
+      <div class="legend"><span><i class="dot-sw"></i>Your stopwatch times</span><span><i class="dot-gate"></i>Light gate, when shown</span></div>
+    </div>
+  </section>
+
+  <section class="lower">
+    <div class="plan">
+      <div class="field-head"><h2>Run plan</h2><span class="field-note" id="planCount"></span></div>
+      <p class="field-note">Tap a run to load its settings. Each run needs three stopwatch times. The prediction run needs your prediction instead.</p>
+      <div id="plan"></div>
+    </div>
+
+    <div class="log">
+      <div class="field-head">
+        <h2>Run history</h2>
+        <div class="actions">
+          <span class="copy-msg" id="copyMsg" aria-live="polite"></span>
+          <button class="btn small" id="download" type="button" hidden>Download CSV</button>
+          <button class="btn ghost small" id="copy" type="button">Copy table</button>
+          <button class="btn ghost small" id="clear" type="button">Clear history</button>
+        </div>
+      </div>
+      <p class="log-note" id="logNote">Every release this session, with its masses, friction, your stopwatch time and the gate time. The export also gives each mass in kilograms.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Trial</th><th>Clock</th><th>Hanging (g)</th><th>Cart (g)</th><th>Friction</th><th>Stopwatch (s)</th><th>Predicted (s)</th><th>Gate (s)</th><th><span class="sr">Remove</span></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="howto" aria-label="From time to acceleration">
+    <div><b>Distance</b><p>The gate sits 1.00 m from the start line, so <span class="formula"><i>d</i> = 1.00 <span class="u">m</span></span> on every run.</p></div>
+    <div><b>Acceleration</b><p>The cart starts from rest, so <span class="formula"><i>a</i> = <span class="frac"><span>2<i>d</i></span><span><i>t</i><sup>2</sup></span></span></span>. Average your three stopwatch times first.</p></div>
+    <div><b>Force</b><p>The pull is the hanging weight, <span class="formula"><i>F</i> = <i>mg</i></span>, with <i>m</i> in <i>kilograms</i>: 20 g is 0.020 kg.</p></div>
+  </section>
+
+  <footer>
+    <span>Lab 3: Newton's Second Law &middot; Thursday, October 15, 2026</span>
+    <span>Your run history stays in this browser only. Write your times on the handout as you go, and export before you close the tab.</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const G = 9.8, MU = 0.010, CART = 500, GATE = 1.0, STOP = 1.15, NEED = 3;
+  const PW_HASH = "4a49c3b2035a18687310ef08f535a8bb337f5c9faf2ee52cb30f2c544be77f1a";
+  const KEY = "lab3-cart-v2";
+  const HANG = [20, 40, 60, 80];
+  const ADD = [0, 200, 400];
+  const PLAN = [
+    { group: "Your prediction", items: [ { m: 80, add: 200, fric: false, need: 1, predict: true, shared: "Do this first: predict it, then press Check my prediction" } ] },
+    { group: "Part A: vary the force", items: [
+      { m: 20, add: 0, fric: true }, { m: 40, add: 0, fric: true },
+      { m: 60, add: 0, fric: true }, { m: 80, add: 0, fric: true } ] },
+    { group: "Part B: vary the mass", items: [
+      { m: 60, add: 0, fric: true, shared: "Same run as Part A, 60 g" }, { m: 60, add: 200, fric: true }, { m: 60, add: 400, fric: true } ] },
+  ];
+
+  const $ = id => document.getElementById(id);
+  const scene = $("scene"), sctx = scene.getContext("2d");
+  const graph = $("graph"), gctx = graph.getContext("2d");
+
+  const S = { m: 20, add: 0, fric: true, phase: "idle", t0: 0, a: 0, d: 0, t: 0, tripped: false, flash: 0,
+              cur: null, sw: { on: false, start: 0, last: 0 }, log: [], unlocked: false };
+  // The run history survives a reload; showing the gate times does not, so a reload always hides them again.
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (saved && Array.isArray(saved.log)) S.log = saved.log;
+  } catch (e) {}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ log: S.log })); } catch (e) {} };
+
+  const accel = () => {
+    const M = (CART + S.add) / 1000, m = S.m / 1000, mu = S.fric ? MU : 0;
+    return (m - mu * M) * G / (M + m);
+  };
+  const same = (e, p) => e.m === p.m && e.add === p.add && e.fric === p.fric;
+  // A plan run counts its stopwatch times; the prediction run counts its checked predictions.
+  const timedCount = p => S.log.filter(e => (p.predict ? e.pred != null : e.sw != null) && same(e, p)).length;
+  const allItems = () => PLAN.flatMap(g => g.items);
+  // Each plan run needs three timings, except the friction-off run, which the handout times once.
+  const planFor = e => allItems().find(p => same(e, p)) || {};
+  const needFor = e => planFor(e).need || NEED;
+
+  // ---------- controls ----------
+  function chip(label, pressed, onClick) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = label;
+    b.setAttribute("aria-pressed", pressed ? "true" : "false");
+    b.addEventListener("click", onClick);
+    return b;
+  }
+  function renderControls() {
+    const busy = S.phase === "running";
+    $("hangChips").replaceChildren(...HANG.map(m => { const b = chip(m + " g", S.m === m, () => setSettings({ m })); b.disabled = busy; return b; }));
+    $("addChips").replaceChildren(...ADD.map(a => { const b = chip(a === 0 ? "None" : "+" + a + " g", S.add === a, () => setSettings({ add: a })); b.disabled = busy; return b; }));
+    $("hangNote").textContent = S.m + " g = " + (S.m / 1000).toFixed(3) + " kg";
+    $("cartNote").textContent = "Cart total " + (CART + S.add) + " g";
+    $("fric").checked = S.fric; $("fric").disabled = busy;
+    $("fricNote").textContent = S.fric
+      ? "On. A small, steady drag, like a real track. Leave it on for every run except the prediction run."
+      : "Off. A perfectly frictionless track, for the prediction run. Switch it back on afterward.";
+    const go = $("go"), mustPredict = !S.fric && S.phase === "idle";
+    go.textContent = mustPredict ? "Predict first (below)" : S.phase === "idle" ? "Release the cart" : S.phase === "running" ? "Running..." : "Reset the cart";
+    go.disabled = busy || mustPredict;
+    $("predict").hidden = S.fric;
+    $("check").disabled = S.phase !== "idle"; $("pred").disabled = S.phase !== "idle";
+    // A checked prediction stays on the record: no Redo, no Remove, so a second try shows in the history.
+    $("redo").disabled = !S.cur || S.cur.pred != null;
+    renderPlan();
+  }
+  function setSettings(p) {
+    if (S.phase === "running") return;
+    Object.assign(S, p);
+    reset();
+  }
+  function reset() {
+    S.phase = "idle"; S.d = 0; S.t = 0; S.tripped = false; S.flash = 0; S.cur = null;
+    $("predResult").textContent = ""; $("predResult").className = "pred-result";
+    setStatus(S.fric ? "Ready. One of you releases the cart, one runs the stopwatch, one records."
+                     : "Friction is off. Predict the time to the gate, then press Check my prediction.");
+    renderGate(); renderControls(); draw(); drawGraph();
+  }
+  // Throw away the current trial (finished or not) and set the cart back at the start with the same settings.
+  function redo() {
+    const e = S.cur;
+    if (!e || e.pred != null) return;
+    S.log = S.log.filter(x => x !== e); save();
+    S.sw.on = false; S.sw.last = 0; renderSw();
+    reset(); renderLog();
+    setStatus("Trial " + e.n + " removed. Same settings loaded: release the cart and time it again.");
+  }
+  function setStatus(msg, warn) { const el = $("status"); el.textContent = msg; el.classList.toggle("warn", !!warn); }
+
+  // ---------- stopwatch ----------
+  function swRead() { return S.sw.on ? (performance.now() - S.sw.start) / 1000 : S.sw.last; }
+  function renderSw() {
+    $("swRead").innerHTML = swRead().toFixed(2) + '<span class="unit">s</span>';
+    $("swState").textContent = S.sw.on ? "Running" : (S.sw.last ? "Stopped" : "Ready");
+    $("sw").textContent = S.sw.on ? "Stop stopwatch" : "Start stopwatch";
+  }
+  function swLoop() { if (!S.sw.on) return; renderSw(); requestAnimationFrame(swLoop); }
+  function toggleSw() {
+    if (!S.sw.on) {
+      S.sw.on = true; S.sw.start = performance.now(); S.sw.last = 0;
+      renderSw(); requestAnimationFrame(swLoop); return;
+    }
+    S.sw.on = false; S.sw.last = Math.round((performance.now() - S.sw.start) / 10) / 100;
+    renderSw();
+    const e = S.cur;
+    if (!e) { setStatus("Stopwatch stopped, but the cart was not released. Release the cart, then time it.", true); return; }
+    if (e.sw != null) { setStatus("Trial " + e.n + " already has a time. Reset the cart for the next trial.", true); return; }
+    e.sw = S.sw.last; save();
+    renderLog(); renderPlan(); drawGraph();
+    const left = needFor(e) - timedCount(planFor(e).m ? planFor(e) : e);
+    setStatus("Trial " + e.n + ": " + e.sw.toFixed(2) + " s. " + (left > 0 ? left + " more for this run." : "This run is done. Pick the next one in the plan."));
+  }
+
+  // ---------- prediction (friction off) ----------
+  function showPrediction(e) {
+    const diff = Math.abs(e.pred - e.t) / e.t * 100, el = $("predResult");
+    const close = diff <= 2;
+    el.className = "pred-result " + (close ? "good" : "off");
+    el.textContent = "Predicted " + e.pred.toFixed(2) + " s. Gate " + e.t.toFixed(3) + " s. Off by " + diff.toFixed(1) + "%. "
+      + (close ? "The physics predicted it." : "Check your steps: every mass in kilograms, which mass the force has to speed up, and t = \u221A(2d / a).");
+    setStatus("Gate: " + e.t.toFixed(3) + " s against your " + e.pred.toFixed(2) + " s prediction.");
+    renderLog(); renderPlan();
+  }
+  $("predForm").addEventListener("submit", ev => {
+    ev.preventDefault();
+    if (S.fric || S.phase !== "idle") return;
+    const raw = $("pred").value.trim().replace(",", ".");
+    const v = /^\d*\.?\d+$/.test(raw) ? parseFloat(raw) : NaN;   // one plain number, so "1.381.41" is refused, not read as 1.38
+    const el = $("predResult");
+    if (!(v > 0 && v < 1000)) { el.className = "pred-result off"; el.textContent = "Type one number: your predicted time in seconds."; $("pred").select(); return; }
+    el.textContent = "";
+    $("pred").value = "";                            // the prediction now lives in the trial and the result line
+    release(Math.round(v * 1000) / 1000);
+  });
+
+  // ---------- light gate ----------
+  function renderGate() {
+    const el = $("gateRead");
+    if (!S.unlocked && !(S.cur && S.cur.pred != null)) { el.textContent = "locked"; return; }
+    if (S.cur && S.tripped) el.innerHTML = "<b>" + S.cur.t.toFixed(3) + " s</b>";
+    else el.textContent = S.phase === "running" ? "timing" : "ready";
+  }
+
+  // ---------- run ----------
+  function release(pred) {
+    if (S.phase !== "idle") return;
+    if (!S.fric && pred == null) return;              // friction-off runs start only from Check my prediction
+    const a = accel();
+    if (a <= 0) { setStatus("The cart does not move: the pull is too small to overcome friction.", true); return; }
+    S.a = a; S.phase = "running"; S.t0 = performance.now(); S.tripped = false;
+    const n = S.log.length ? S.log[S.log.length - 1].n + 1 : 1;
+    S.cur = { n, at: Date.now(), m: S.m, add: S.add, fric: S.fric, t: Math.round(Math.sqrt(2 * GATE / a) * 1000) / 1000, a, sw: null, pred: pred == null ? null : pred };
+    S.log.push(S.cur); save(); renderLog();
+    setStatus(pred == null ? "Released. Stop the stopwatch when the cart reaches the gate."
+                           : "Released. Your prediction: " + pred.toFixed(2) + " s. Watch the gate.");
+    renderGate(); renderControls();
+    requestAnimationFrame(tick);
+  }
+  function tick(now) {
+    if (S.phase !== "running") return;
+    S.t = (now - S.t0) / 1000;
+    S.d = 0.5 * S.a * S.t * S.t;
+    if (!S.tripped && S.d >= GATE) { S.tripped = true; S.flash = now; renderGate(); if (S.cur && S.cur.pred != null) showPrediction(S.cur); }
+    if (S.d >= STOP) { S.d = STOP; S.phase = "done"; renderControls(); }
+    draw(now); drawGraph();
+    if (S.phase === "running") requestAnimationFrame(tick);
+    else if (now - S.flash < 600) requestAnimationFrame(fade);
+  }
+  function fade(now) { draw(now); if (now - S.flash < 600) requestAnimationFrame(fade); }
+
+  // ---------- show gate times (password every time it is switched on) ----------
+  async function sha(text) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+  function pwMsg(text, kind) { const m = $("pwMsg"); m.textContent = text; m.className = "pw-msg" + (kind ? " " + kind : ""); }
+  function renderShow() {
+    $("showGate").checked = S.unlocked;
+    updateGateAvail();
+    renderLog(); renderGate(); drawGraph();
+  }
+  // The switch opens only once every run in the plan has all its stopwatch times.
+  function updateGateAvail() {
+    const items = allItems(), done = items.filter(p => timedCount(p) >= needFor(p)).length, ready = done === items.length;
+    $("showGate").disabled = !ready && !S.unlocked;
+    $("gateNote").textContent = S.unlocked
+      ? "Showing. The light gate's exact times appear in the history, the graph and the timer."
+      : ready ? "Every run is timed. Ask your teacher to turn this on with the password."
+      : "Opens once every run in the plan is timed (" + done + " of " + items.length + " done).";
+  }
+  function closePw() { $("pwForm").hidden = true; $("pw").value = ""; }
+  $("showGate").addEventListener("change", e => {
+    if (!e.target.checked) { S.unlocked = false; closePw(); pwMsg(""); renderShow(); return; }
+    e.target.checked = false;
+    if (allItems().some(p => timedCount(p) < needFor(p))) { updateGateAvail(); return; }               // stays off until the password is right
+    $("pwForm").hidden = false; pwMsg(""); $("pw").focus();
+  });
+  $("pwCancel").addEventListener("click", () => { closePw(); pwMsg(""); });
+  $("pwForm").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    if (allItems().some(p => timedCount(p) < needFor(p))) { closePw(); updateGateAvail(); return; }
+    const val = $("pw").value.trim().toLowerCase();
+    let ok = false;
+    try { ok = (await sha(val)) === PW_HASH; } catch (e) { pwMsg("This browser could not check the password.", "bad"); return; }
+    if (!ok) { pwMsg("That is not the password.", "bad"); $("pw").select(); return; }
+    S.unlocked = true; closePw(); pwMsg("Gate times are showing.", "ok");
+    setTimeout(() => { if ($("pwMsg").classList.contains("ok")) pwMsg(""); }, 3000);
+    renderShow();
+  });
+
+  // ---------- export ----------
+  const pad2 = n => String(n).padStart(2, "0");
+  const clock = at => { if (!at) return ""; const d = new Date(at); let h = d.getHours(); const ap = h < 12 ? "am" : "pm"; h = h % 12 || 12; return h + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds()) + " " + ap; };
+  function historyRows() {
+    const head = ["Trial", "Date", "Clock", "Hanging mass (g)", "Hanging mass (kg)", "Cart (g)", "Added to cart (g)", "Cart total (g)", "Cart total (kg)", "Track friction", "Friction coefficient", "Stopwatch time (s)", "Predicted time (s)", "Gate time (s)"];
+    const rows = S.log.map(e => {
+      const d = e.at ? new Date(e.at) : null;
+      return [e.n, d ? d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) : "", clock(e.at),
+        e.m, (e.m / 1000).toFixed(3), CART, e.add, CART + e.add, ((CART + e.add) / 1000).toFixed(3),
+        e.fric ? "on" : "off", e.fric ? MU.toFixed(3) : "0.000",
+        e.sw != null ? e.sw.toFixed(2) : "", e.pred != null ? e.pred.toFixed(2) : "",
+        S.unlocked || e.pred != null ? e.t.toFixed(3) : "hidden"];
+    });
+    return [head].concat(rows);
+  }
+  const csvCell = v => { const s = String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  // On claude.ai the viewer saves the file through its downloads capability; anywhere else
+  // (GitHub Pages, the school site) a plain browser download does the same job.
+  let downloads = null;
+  const onClaude = !!(window.claude && claude.use);
+  if (onClaude) claude.use("downloads").then(d => { downloads = d; $("download").hidden = !d; }).catch(() => {});
+  else $("download").hidden = false;
+  function browserSave(name, text) {
+    const url = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
+    const a = document.createElement("a"); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  $("download").addEventListener("click", async () => {
+    const msg = $("copyMsg");
+    if (!S.log.length) { msg.textContent = "Nothing to export yet."; return; }
+    const now = new Date();
+    const name = "Lab3_runs_" + now.getFullYear() + "-" + pad2(now.getMonth() + 1) + "-" + pad2(now.getDate()) + ".csv";
+    const text = historyRows().map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
+    if (!onClaude) { browserSave(name, text); msg.textContent = "Saved " + name + " to your downloads."; setTimeout(() => msg.textContent = "", 4000); return; }
+    try { await downloads.save({ filename: name, data: text }); msg.textContent = "Saved " + name + "."; }
+    catch (e) { msg.textContent = e && e.code === "declined" ? "" : "Download is not available here. Use Copy table instead."; }
+    setTimeout(() => msg.textContent = "", 4000);
+  });
+
+  // ---------- drawing ----------
+  const css = {};
+  function readColors() { const cs = getComputedStyle(document.documentElement); ["surface","ink","muted","rule","accent","accent-soft","wood","wood-edge","rail","mass","beam","beam-hit"].forEach(k => css[k] = cs.getPropertyValue("--" + k).trim()); }
+  function fit(canvas, ctx, h) {
+    const dpr = window.devicePixelRatio || 1, w = canvas.clientWidth;
+    canvas.style.height = h + "px";
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return w;
+  }
+  function geom() {
+    const W = scene.clientWidth;
+    const left = 10, right = 74;
+    const s = (W - left - right) / (0.17 + 1.24);
+    const X = m => left + (m + 0.17) * s;
+    const tableY = 74;
+    const r = Math.max(9, Math.min(15, 0.022 * s));
+    const dropTop = tableY + 30;
+    const slot = Math.max(5, Math.min(8, 0.012 * s));
+    const drop = Math.min(0.5 * STOP * s, 150);
+    const H = dropTop + drop + 4 * slot + 50;
+    return { W, s, X, tableY, r, dropTop, slot, drop, H };
+  }
+  function roundRect(ctx, x, y, w, h, rad) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, rad) : ctx.rect(x, y, w, h); }
+
+  function draw(now) {
+    readColors();
+    const g = geom();
+    const W = fit(scene, sctx, g.H), c = sctx, { s, X, tableY, r } = g;
+    c.clearRect(0, 0, W, g.H);
+    c.fillStyle = css.surface; c.fillRect(0, 0, W, g.H);
+    const pulleyX = X(1.22);
+
+    const floorY = g.H - 18;
+    c.strokeStyle = css.rule; c.lineWidth = 1; c.beginPath(); c.moveTo(0, floorY + .5); c.lineTo(W, floorY + .5); c.stroke();
+    c.fillStyle = css["accent-soft"]; roundRect(c, pulleyX + r - 24, floorY - 12, 48, 12, 5); c.fill();
+
+    const benchTop = tableY, benchH = 22;
+    c.fillStyle = css.wood; c.fillRect(X(-0.17), benchTop, pulleyX - X(-0.17) + 4, benchH);
+    c.fillStyle = css["wood-edge"]; c.fillRect(X(-0.17), benchTop + benchH - 3, pulleyX - X(-0.17) + 4, 3);
+    c.fillRect(pulleyX - 22, benchTop + benchH, 14, floorY - benchTop - benchH);
+    c.font = "500 10px 'IBM Plex Mono', ui-monospace, monospace"; c.textAlign = "center"; c.textBaseline = "top";
+    for (let i = 0; i <= 50; i++) {
+      const m = i * 0.02, x = Math.round(X(m)) + .5, major = i % 5 === 0;
+      c.strokeStyle = css.ink; c.globalAlpha = major ? .75 : .35; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(x, benchTop + 3); c.lineTo(x, benchTop + (major ? 12 : 7)); c.stroke();
+      c.globalAlpha = 1;
+      if (major && (i % 10 === 0 || s > 380)) { c.fillStyle = css.ink; c.fillText(String(Math.round(m * 100)), x, benchTop + benchH + 4); }
+    }
+    c.fillStyle = css.muted; c.textAlign = "left"; c.fillText("cm", X(1.0) + 14, benchTop + benchH + 4);
+
+    c.fillStyle = css.rail; c.fillRect(X(-0.16), tableY - 4, X(1.19) - X(-0.16), 4);
+    c.fillStyle = css.mass; c.fillRect(X(STOP) + 2, tableY - 18, 5, 14);
+
+    c.strokeStyle = css.muted; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(X(0) + .5, tableY - 44); c.lineTo(X(0) + .5, tableY); c.stroke(); c.setLineDash([]);
+    c.font = "600 10px Inter, system-ui, sans-serif"; c.fillStyle = css.muted; c.textAlign = "center"; c.textBaseline = "bottom";
+    c.fillText("START", X(0), tableY - 47);
+
+    const gx = X(GATE), beamY = tableY - 16;
+    const hit = S.flash && now && now - S.flash < 600;
+    c.fillStyle = css.ink; c.fillRect(gx - 2, tableY - 52, 4, 48);
+    c.fillStyle = css.mass; roundRect(c, gx - 7, tableY - 62, 14, 12, 3); c.fill();
+    c.strokeStyle = hit || S.tripped ? css["beam-hit"] : css.beam; c.lineWidth = 2; c.setLineDash([4, 3]);
+    c.beginPath(); c.moveTo(gx, tableY - 48); c.lineTo(gx, tableY - 4); c.stroke(); c.setLineDash([]);
+    if (hit) { c.globalAlpha = 1 - (now - S.flash) / 600; c.fillStyle = css["beam-hit"]; c.beginPath(); c.arc(gx, beamY, 16, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1; }
+    c.fillStyle = css.ink; c.font = "600 10px Inter, system-ui, sans-serif"; c.textBaseline = "bottom";
+    c.fillText("GATE", gx, tableY - 64);
+
+    const cartLen = 0.13 * s, cartH = Math.max(14, 0.03 * s), wr = Math.max(4, 0.011 * s);
+    const bodyBottom = tableY - 4 - wr * 1.4;
+    const stringY = bodyBottom - cartH * 0.55;
+
+    const py = stringY + r;
+    c.fillStyle = css.mass; c.fillRect(pulleyX - 3, py, 6, tableY + 10 - py); c.fillRect(pulleyX - 10, tableY - 2, 14, 12);
+    const ang = S.d / (r / s);
+    c.save(); c.translate(pulleyX, py);
+    c.fillStyle = css.rail; c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = css.surface; c.lineWidth = 1.5; c.rotate(ang);
+    for (let k = 0; k < 3; k++) { c.beginPath(); c.moveTo(-r + 3, 0); c.lineTo(r - 3, 0); c.stroke(); c.rotate(Math.PI / 3); }
+    c.restore();
+    c.fillStyle = css.ink; c.beginPath(); c.arc(pulleyX, py, 2.5, 0, Math.PI * 2); c.fill();
+
+    const front = X(S.d), back = front - cartLen;
+    c.strokeStyle = css.ink; c.lineWidth = 1;
+    const massTop = g.dropTop + g.drop * S.d / STOP;
+    c.beginPath(); c.moveTo(front, stringY); c.lineTo(pulleyX, stringY); c.stroke();
+    c.beginPath(); c.moveTo(pulleyX + r, py); c.lineTo(pulleyX + r, massTop); c.stroke();
+    c.fillStyle = css.accent; roundRect(c, back, bodyBottom - cartH, cartLen, cartH, 3); c.fill();
+    c.fillStyle = css.surface; c.globalAlpha = .9; c.font = "600 " + Math.max(9, Math.min(11, cartH * .6)) + "px 'IBM Plex Mono', monospace"; c.textAlign = "center"; c.textBaseline = "middle";
+    c.fillText("500 g", back + cartLen / 2, bodyBottom - cartH / 2 + .5); c.globalAlpha = 1;
+    const blocks = S.add / 200, bh = Math.max(6, cartH * .45);
+    for (let k = 0; k < blocks; k++) { c.fillStyle = css.mass; roundRect(c, back + cartLen * .2, bodyBottom - cartH - (k + 1) * (bh + 1), cartLen * .6, bh, 2); c.fill(); }
+    if (blocks) { c.fillStyle = css.ink; c.font = "600 10px 'IBM Plex Mono', monospace"; c.textBaseline = "bottom"; c.fillText("+" + S.add + " g", back + cartLen / 2, bodyBottom - cartH - blocks * (bh + 1) - 3); }
+    const wAng = S.d * s / wr;
+    [back + cartLen * .2, front - cartLen * .2].forEach(wx => {
+      c.save(); c.translate(wx, tableY - 4 - wr);
+      c.fillStyle = css.ink; c.beginPath(); c.arc(0, 0, wr, 0, Math.PI * 2); c.fill();
+      c.rotate(wAng); c.strokeStyle = css.surface; c.lineWidth = 1.2; c.beginPath(); c.moveTo(-wr + 1.5, 0); c.lineTo(wr - 1.5, 0); c.stroke();
+      c.restore();
+    });
+
+    const hx = pulleyX + r, slot = g.slot, n = S.m / 20, mw = Math.max(18, 0.04 * s);
+    c.strokeStyle = css.ink; c.lineWidth = 1.5; c.beginPath(); c.arc(hx, massTop + 4, 4, Math.PI * 1.1, Math.PI * 2.4); c.stroke();
+    c.fillStyle = css.mass; c.fillRect(hx - 1.5, massTop + 8, 3, 6);
+    for (let k = 0; k < n; k++) { c.fillStyle = css.mass; roundRect(c, hx - mw / 2, massTop + 14 + k * (slot + 1), mw, slot, 2); c.fill(); }
+    c.fillStyle = css.ink; c.font = "600 11px 'IBM Plex Mono', monospace"; c.textAlign = "left"; c.textBaseline = "middle";
+    c.fillText(S.m + " g", hx + mw / 2 + 6, massTop + 14 + n * (slot + 1) / 2);
+  }
+
+  function drawGraph() {
+    readColors();
+    const W = graph.clientWidth, H = Math.max(220, Math.min(320, W * 0.62));
+    fit(graph, gctx, H);
+    const c = gctx, pad = { l: 44, r: 14, t: 16, b: 34 };
+    c.clearRect(0, 0, W, H);
+    const timed = S.log.filter(e => e.sw != null);
+    const live = S.unlocked && S.phase === "running" ? S : null;
+    let tMax = 3;
+    timed.forEach(e => { tMax = Math.max(tMax, Math.ceil(e.sw * 2) / 2); });
+    if (S.unlocked) S.log.forEach(e => { tMax = Math.max(tMax, Math.ceil(e.t * 2) / 2); });
+    tMax = Math.min(tMax, 6);
+    const px = t => pad.l + Math.min(t, tMax) / tMax * (W - pad.l - pad.r);
+    const py = d => H - pad.b - d / 1.0 * (H - pad.t - pad.b);
+    c.font = "500 10px 'IBM Plex Mono', monospace"; c.fillStyle = css.muted; c.lineWidth = 1;
+    c.textAlign = "right"; c.textBaseline = "middle";
+    for (let d = 0; d <= 1.0001; d += 0.25) {
+      c.strokeStyle = css.rule; c.beginPath(); c.moveTo(pad.l, Math.round(py(d)) + .5); c.lineTo(W - pad.r, Math.round(py(d)) + .5); c.stroke();
+      c.fillText(d.toFixed(2), pad.l - 6, py(d));
+    }
+    c.textAlign = "center"; c.textBaseline = "top";
+    const step = tMax > 4 ? 1 : 0.5;
+    for (let t = 0; t <= tMax + 1e-9; t += step) {
+      c.strokeStyle = css.rule; c.beginPath(); c.moveTo(Math.round(px(t)) + .5, pad.t); c.lineTo(Math.round(px(t)) + .5, H - pad.b); c.stroke();
+      c.fillText(t.toFixed(1), px(t), H - pad.b + 6);
+    }
+    c.fillText("time (s)", (pad.l + W - pad.r) / 2, H - 14);
+    c.save(); c.translate(11, (pad.t + H - pad.b) / 2); c.rotate(-Math.PI / 2); c.textBaseline = "middle"; c.fillText("distance (m)", 0, 0); c.restore();
+
+    if (!timed.length && !live && !(S.unlocked && S.log.length)) {
+      c.fillStyle = css.muted; c.font = "400 13px Inter, system-ui, sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
+      c.fillText("Each stopwatch time you record shows up here.", (pad.l + W - pad.r) / 2, (pad.t + H - pad.b) / 2);
+      return;
+    }
+    const curve = (a, tEnd, alpha, width) => {
+      c.globalAlpha = alpha; c.strokeStyle = css.accent; c.lineWidth = width; c.beginPath();
+      for (let i = 0; i <= 60; i++) { const t = tEnd * i / 60; const d = 0.5 * a * t * t; i ? c.lineTo(px(t), py(d)) : c.moveTo(px(t), py(d)); }
+      c.stroke(); c.globalAlpha = 1;
+    };
+    if (S.unlocked) {
+      const seen = [];
+      S.log.forEach(e => { if (!seen.some(x => same(x, e))) seen.push(e); });
+      seen.forEach(e => { curve(e.a, e.t, 0.45, 1.5); c.fillStyle = css.accent; c.beginPath(); c.arc(px(e.t), py(1), 3.5, 0, Math.PI * 2); c.fill(); });
+    }
+    timed.forEach(e => {
+      c.strokeStyle = css.accent; c.lineWidth = 2; c.fillStyle = css.surface;
+      c.beginPath(); c.arc(px(e.sw), py(1), 4.5, 0, Math.PI * 2); c.fill(); c.stroke();
+    });
+    if (live) {
+      const t = Math.min(S.t, Math.sqrt(2 / S.a));
+      curve(S.a, t, 1, 2.5);
+      c.fillStyle = css.beam; c.beginPath(); c.arc(px(t), py(0.5 * S.a * t * t), 4.5, 0, Math.PI * 2); c.fill();
+    }
+  }
+
+  // ---------- plan and log ----------
+  function renderPlan() {
+    const box = $("plan"); box.replaceChildren();
+    const items = allItems();
+    PLAN.forEach(gp => {
+      const wrap = document.createElement("div"); wrap.className = "plan-group";
+      const h = document.createElement("h3"); h.textContent = gp.group; wrap.appendChild(h);
+      gp.items.forEach(p => {
+        const need = needFor(p), k = Math.min(timedCount(p), need), ok = k >= need;
+        const b = document.createElement("button"); b.type = "button";
+        b.className = "plan-item" + (ok ? " done" : "") + (same(S, p) ? " current" : "");
+        b.disabled = S.phase === "running";
+        const tick = document.createElement("span"); tick.className = "tick";
+        const label = document.createElement("span");
+        label.textContent = "Hang " + p.m + " g on a " + (CART + p.add) + " g cart" + (p.fric ? "" : ", friction off");
+        if (p.shared) { const sm = document.createElement("small"); sm.textContent = p.shared; label.appendChild(sm); }
+        const pips = document.createElement("span"); pips.className = "pips";
+        for (let i = 0; i < need; i++) { const d = document.createElement("span"); if (i < k) d.className = "on"; pips.appendChild(d); }
+        b.append(tick, label, pips);
+        b.setAttribute("aria-label", label.textContent + ", " + k + " of " + need + " timed");
+        b.addEventListener("click", () => setSettings({ m: p.m, add: p.add, fric: p.fric }));
+        wrap.appendChild(b);
+      });
+      box.appendChild(wrap);
+    });
+    const done = items.filter(p => timedCount(p) >= needFor(p)).length;
+    $("planCount").textContent = done + " of " + items.length + " done";
+    updateGateAvail();
+  }
+  function renderLog() {
+    const body = $("rows"); body.replaceChildren();
+    if (!S.log.length) {
+      const tr = document.createElement("tr"); tr.className = "empty";
+      const td = document.createElement("td"); td.colSpan = 9; td.textContent = "No runs yet. Each release adds a row here.";
+      tr.appendChild(td); body.appendChild(tr); return;
+    }
+    S.log.forEach(e => {
+      const tr = document.createElement("tr");
+      const n = document.createElement("td"); n.textContent = String(e.n); tr.appendChild(n);
+      const ck = document.createElement("td"); ck.className = "clock"; ck.textContent = clock(e.at); tr.appendChild(ck);
+      [String(e.m), (CART + e.add) + (e.add ? " (+" + e.add + ")" : ""), e.fric ? "on" : "off"].forEach(v => { const td = document.createElement("td"); td.textContent = v; tr.appendChild(td); });
+      const sw = document.createElement("td");
+      if (e.sw != null) { sw.className = "time"; sw.textContent = e.sw.toFixed(2); } else { sw.className = "none"; sw.textContent = e.pred != null ? "not needed" : "not timed"; }
+      const pr = document.createElement("td");
+      if (e.pred != null) { pr.className = "time"; pr.textContent = e.pred.toFixed(2); } else { pr.className = "none"; pr.textContent = ""; }
+      const gt = document.createElement("td");
+      if (S.unlocked || e.pred != null) { gt.className = "time"; gt.textContent = e.t.toFixed(3); } else { gt.className = "locked"; gt.textContent = "hidden"; }
+      const dl = document.createElement("td"); const b = document.createElement("button");
+      b.type = "button"; b.className = "del"; b.textContent = "Remove"; b.setAttribute("aria-label", "Remove trial " + e.n);
+      b.disabled = S.phase === "running" && e === S.cur;
+      if (e.pred != null) { b.disabled = true; b.textContent = "kept"; b.title = "Predictions stay in the history"; }
+      b.addEventListener("click", () => { S.log = S.log.filter(x => x !== e); if (S.cur === e) S.cur = null; save(); renderLog(); renderControls(); drawGraph(); });
+      dl.appendChild(b);
+      tr.append(sw, pr, gt, dl); body.appendChild(tr);
+    });
+  }
+
+  // ---------- wiring ----------
+  $("go").addEventListener("click", () => S.phase === "idle" ? release() : reset());
+  $("sw").addEventListener("click", toggleSw);
+  $("redo").addEventListener("click", redo);
+  $("fric").addEventListener("change", e => setSettings({ fric: e.target.checked }));
+  document.addEventListener("keydown", e => {
+    if (e.code !== "Space" || e.repeat) return;
+    const tag = (e.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea") return;
+    e.preventDefault();
+    toggleSw();
+  });
+  // A focused button clicks on Space's keyup, so swallow that too: the space bar is the stopwatch only.
+  document.addEventListener("keyup", e => {
+    if (e.code !== "Space") return;
+    const tag = (e.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea") return;
+    e.preventDefault();
+  });
+  let armed = 0;
+  $("clear").addEventListener("click", () => {
+    const b = $("clear");
+    if (Date.now() - armed > 4000) { armed = Date.now(); b.textContent = "Tap again to clear"; setTimeout(() => { if (Date.now() - armed >= 4000) b.textContent = "Clear history"; }, 4100); return; }
+    armed = 0; b.textContent = "Clear history"; S.log = []; save(); reset(); renderLog(); drawGraph();
+  });
+  $("copy").addEventListener("click", () => {
+    const text = historyRows().map(r => r.join("\t")).join("\n"), msg = $("copyMsg");
+    const done = ok => { msg.textContent = ok ? "Copied. Paste it into a spreadsheet." : "Copy blocked here. Select the table and copy it by hand."; setTimeout(() => msg.textContent = "", 3500); };
+    try { navigator.clipboard.writeText(text).then(() => done(true), () => done(false)); } catch (e) { done(false); }
+  });
+  const redraw = () => { draw(); drawGraph(); };
+  new ResizeObserver(redraw).observe(document.querySelector(".wrap"));
+  try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw); } catch (e) {}
+  new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
+
+  renderControls(); renderSw(); renderShow(); reset();
+})();
+</script>
+</body></html>
